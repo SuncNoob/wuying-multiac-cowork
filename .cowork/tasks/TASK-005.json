@@ -3,7 +3,7 @@
   "scenario": "crawler",
   "type": "fetch",
   "title": "Fetch seeds from TASK-002",
-  "status": "in_progress",
+  "status": "done",
   "body": "",
   "need": [],
   "owner": "ac2",
@@ -19,5 +19,5 @@
     "TASK-002"
   ],
   "created_at": 1788852777,
-  "updated_at": 1788852943
+  "updated_at": 1788852948
 }

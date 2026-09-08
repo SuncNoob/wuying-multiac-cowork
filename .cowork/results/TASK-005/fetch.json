@@ -1,0 +1,15 @@
+{
+  "ok": true,
+  "fetched": [
+    {
+      "url": "https://example.com",
+      "ok": true,
+      "status": 200,
+      "content_type": "text/html",
+      "bytes": 559,
+      "file": ".cowork/results/TASK-005/https___example_com.html",
+      "title": "Example Domain"
+    }
+  ],
+  "at": 1788852948
+}
