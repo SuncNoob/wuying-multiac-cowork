@@ -1,0 +1,11 @@
+{
+  "seed_task": "TASK-002",
+  "allow_hosts": [
+    "example.com"
+  ],
+  "urls": [
+    "https://example.com"
+  ],
+  "rejected": [],
+  "at": 1788852777
+}

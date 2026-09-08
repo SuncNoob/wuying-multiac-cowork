@@ -1,12 +1,12 @@
 {
-  "id": "TASK-002",
+  "id": "TASK-005",
   "scenario": "crawler",
-  "type": "enqueue",
-  "title": "fetch example.com",
-  "status": "done",
+  "type": "fetch",
+  "title": "Fetch seeds from TASK-002",
+  "status": "open",
   "body": "",
   "need": [],
-  "owner": "ac1",
+  "owner": "",
   "seed_urls": [
     "https://example.com"
   ],
@@ -15,7 +15,9 @@
   ],
   "path": "",
   "content": "",
-  "depends_on": [],
-  "created_at": 1788852552,
+  "depends_on": [
+    "TASK-002"
+  ],
+  "created_at": 1788852777,
   "updated_at": 1788852777
 }
