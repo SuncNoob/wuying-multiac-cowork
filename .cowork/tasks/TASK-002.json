@@ -3,10 +3,10 @@
   "scenario": "crawler",
   "type": "enqueue",
   "title": "fetch example.com",
-  "status": "open",
+  "status": "claimed",
   "body": "",
   "need": [],
-  "owner": "",
+  "owner": "ac1",
   "seed_urls": [
     "https://example.com"
   ],
@@ -17,5 +17,5 @@
   "content": "",
   "depends_on": [],
   "created_at": 1788852552,
-  "updated_at": 1788852552
+  "updated_at": 1788852748
 }
