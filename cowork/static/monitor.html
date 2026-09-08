@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>无影 Cowork 监控</title>
+  <style>
+    :root {
+      --bg: #111214;
+      --panel: #1a1c20;
+      --line: #2a2d33;
+      --text: #e8eaed;
+      --muted: #8b909a;
+      --idle: #8b909a;
+      --run: #3dd68c;
+      --wait: #e6b84d;
+      --fail: #f07178;
+      --off: #6b7078;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 ui-sans-serif, system-ui, sans-serif; }
+    header {
+      display: flex; align-items: baseline; justify-content: space-between; gap: 16px;
+      padding: 18px 24px 12px; border-bottom: 1px solid var(--line);
+    }
+    h1 { font-size: 18px; font-weight: 600; margin: 0; }
+    .sub { color: var(--muted); font-size: 12px; }
+    .actions { display: flex; gap: 8px; align-items: center; }
+    button {
+      background: #2a2f38; color: var(--text); border: 1px solid var(--line);
+      border-radius: 6px; padding: 6px 10px; cursor: pointer; font: inherit;
+    }
+    button:hover { background: #343a46; }
+    button.primary { background: #1f6feb; border-color: #1f6feb; }
+    button.primary:hover { background: #388bfd; }
+    button:disabled { opacity: .45; cursor: not-allowed; }
+    main { padding: 16px 24px 32px; display: grid; gap: 20px; }
+    .acs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    @media (max-width: 980px) { .acs { grid-template-columns: 1fr; } }
+    .card {
+      background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px;
+      min-height: 180px;
+    }
+    .card h2 { margin: 0 0 8px; font-size: 15px; display: flex; justify-content: space-between; align-items: center; }
+    .pill { font-size: 11px; letter-spacing: .02em; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); }
+    .pill.run { color: var(--run); border-color: #245c40; }
+    .pill.idle { color: var(--idle); }
+    .pill.off { color: var(--off); }
+    .pill.wait { color: var(--wait); border-color: #5c4a1f; }
+    .meta { color: var(--muted); font-size: 12px; display: grid; gap: 4px; }
+    .now { margin-top: 10px; font-size: 13px; }
+    .now strong { font-weight: 600; }
+    table { width: 100%; border-collapse: collapse; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+    th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+    th.desc, td.desc { max-width: 420px; white-space: normal; font-size: 13px; color: var(--text); }
+    tr:last-child td { border-bottom: 0; }
+    .st { font-variant: all-small-caps; letter-spacing: .04em; }
+    .st.open { color: var(--wait); }
+    .st.claimed, .st.in_progress { color: var(--run); }
+    .st.failed { color: var(--fail); }
+    .st.done { color: var(--muted); }
+    .row-btns { display: flex; gap: 6px; flex-wrap: wrap; }
+    select { background: #111214; color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; font: inherit; }
+    .banner { min-height: 18px; color: var(--muted); font-size: 12px; }
+    .banner.err { color: var(--fail); }
+    .banner.ok { color: var(--run); }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>无影 Computer Agent 监控</h1>
+      <div class="sub" id="subtitle">正在连接三台 AC…</div>
+    </div>
+    <div class="actions">
+      <span class="sub" id="clock"></span>
+      <button type="button" id="refresh">刷新</button>
+      <button type="button" class="primary" id="dispatch-all">下发全部未完成</button>
+    </div>
+  </header>
+  <main>
+    <div class="banner" id="banner"></div>
+    <section class="acs" id="acs"></section>
+    <section>
+      <table>
+        <thead>
+          <tr>
+            <th>任务</th>
+            <th>类型</th>
+            <th class="desc">任务描述</th>
+            <th>状态</th>
+            <th>执行者</th>
+            <th>下发</th>
+          </tr>
+        </thead>
+        <tbody id="tasks"></tbody>
+      </table>
+    </section>
+  </main>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    let snap = null;
+    let timer = null;
+
+    function ago(sec) {
+      if (sec == null) return "无心跳";
+      if (sec < 60) return sec + "s 前";
+      if (sec < 3600) return Math.floor(sec / 60) + "m 前";
+      return Math.floor(sec / 3600) + "h 前";
+    }
+
+    function pill(agent) {
+      if (!agent.online) return ['off', '离线'];
+      if (agent.codex) return ['run', 'Codex 运行中'];
+      if (agent.busy) return ['wait', '已领任务'];
+      if (!agent.runtime) return ['off', 'coworkd 未启动'];
+      return ['idle', '空闲'];
+    }
+
+    function render() {
+      if (!snap) return;
+      const name = (snap.project && snap.project.name) || "cowork";
+      $("subtitle").textContent = name + "  ·  " + (snap.root || "") + "  ·  每 3 秒刷新";
+      $("clock").textContent = new Date((snap.generated_at || 0) * 1000).toLocaleTimeString();
+      $("acs").innerHTML = (snap.agents || []).map((a) => {
+        const [cls, label] = pill(a);
+        const t = a.current_task;
+        const cx = a.codex;
+        const now = cx
+            ? `<div class="now"><strong>正在用本机 Codex</strong><div class="meta">${(t && t.description) || (cx.brand || "")} · ${cx.url || ""} · pid ${cx.pid} · ${cx.etime}</div></div>`
+            : t
+            ? `<div class="now"><strong>${t.id}</strong><div class="meta">${t.description || t.title || t.type}</div></div>`
+            : `<div class="now">等待新任务</div>`;
+        const pics = (a.pics || []).length;
+        return `<article class="card">
+          <h2>${a.id}<span class="pill ${cls}">${label}</span></h2>
+          <div class="meta">
+            <div>${a.role || ""} · ${(a.capabilities || []).join(" / ") || "—"}</div>
+            <div>coworkd ${a.runtime ? "pid " + a.runtime.pid + " · " + a.runtime.etime : "未运行"}</div>
+            <div>心跳 ${ago(a.heartbeat_age_s)} · 图片 ${pics} 张</div>
+            <div>${a.git_head || ""}</div>
+            ${a.error ? `<div style="color:var(--fail)">${a.error}</div>` : ""}
+          </div>
+          ${now}
+        </article>`;
+      }).join("");
+
+      const agents = snap.agents || [];
+      $("tasks").innerHTML = (snap.tasks || []).map((t) => {
+        const unfinished = ["open", "failed", "claimed"].includes(t.status);
+        const opts = agents.map((a) => `<option value="${a.id}">${a.id}${a.busy ? " · 忙" : " · 闲"}</option>`).join("");
+        const btns = unfinished
+          ? `<div class="row-btns">
+              <select data-task="${t.id}">${opts}</select>
+              <button data-act="dispatch" data-task="${t.id}">下发</button>
+              <button data-act="reopen" data-task="${t.id}">重开</button>
+            </div>`
+          : (t.status === "in_progress"
+            ? `<div class="row-btns"><button data-act="reopen" data-task="${t.id}">重开并释放</button></div>`
+            : "");
+        return `<tr>
+          <td>${t.id}</td>
+          <td>${t.type || ""}</td>
+          <td class="desc">${t.description || t.title || "—"}</td>
+          <td class="st ${t.status}">${t.status}</td>
+          <td>${t.owner || "—"}</td>
+          <td>${btns}</td>
+        </tr>`;
+      }).join("");
+    }
+
+    async function load() {
+      try {
+        const res = await fetch("/api/snapshot", { cache: "no-store" });
+        snap = await res.json();
+        render();
+      } catch (err) {
+        $("banner").className = "banner err";
+        $("banner").textContent = "快照失败：" + err;
+      }
+    }
+
+    async function post(body) {
+      $("banner").className = "banner";
+      $("banner").textContent = "正在下发…";
+      const res = await fetch("/api/dispatch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      const lines = (data.results || []).map((r) => {
+        if (r.ok) return (r.task_id || "") + " → " + (r.agent_id || "reopen");
+        return (r.task_id || "") + " 失败：" + (r.error || data.error || "");
+      });
+      $("banner").className = data.ok ? "banner ok" : "banner err";
+      $("banner").textContent = lines.join("；") || data.message || data.error || (data.ok ? "已下发" : "下发失败");
+      await load();
+    }
+
+    $("refresh").onclick = load;
+    $("dispatch-all").onclick = () => post({ unfinished: true });
+    $("tasks").addEventListener("click", (ev) => {
+      const btn = ev.target.closest("button");
+      if (!btn) return;
+      const id = btn.getAttribute("data-task");
+      const act = btn.getAttribute("data-act");
+      if (act === "reopen") post({ task_id: id, reopen: true });
+      if (act === "dispatch") {
+        const sel = btn.parentElement.querySelector("select");
+        post({ task_id: id, agent_id: sel ? sel.value : "" });
+      }
+    });
+
+    load();
+    timer = setInterval(load, 3000);
+  </script>
+</body>
+</html>

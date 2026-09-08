@@ -1,0 +1,15 @@
+{
+  "ssh": {
+    "host": "8.139.215.238",
+    "user": "root",
+    "become": "admin"
+  },
+  "github": {
+    "remote": "git@github-jewelry:SuncNoob/japan-jewelry-pics.git"
+  },
+  "agents": [
+    {"id": "ac1", "port": 56735, "role": "dispatcher", "workdir": "/home/admin/japan-jewelry-pics"},
+    {"id": "ac2", "port": 53326, "role": "fetcher", "workdir": "/home/admin/japan-jewelry-pics"},
+    {"id": "ac3", "port": 53730, "role": "analyst", "workdir": "/home/admin/japan-jewelry-pics"}
+  ]
+}

@@ -6,6 +6,8 @@ import argparse
 import traceback
 from typing import Callable
 
+from cowork.codex_run import CODEX_LEASE_SECONDS
+from cowork.browser import DEFAULT_MAX_IMAGES, brand_from_url
 from cowork.executors import run_enqueue, run_extract, run_fetch, run_implement, run_review
 from cowork.protocol import (
     DEFAULT_LEASE_SECONDS,
@@ -103,35 +105,47 @@ def spawn_followups(store: Store, task: Task, result: dict) -> list[Task]:
         store.save_task(review)
         created.extend([impl, review])
     elif task.type == "enqueue":
-        fetch_id = next_task_id(existing)
-        existing.append(fetch_id)
-        fetch = Task(
-            id=fetch_id,
-            scenario="crawler",
-            type="fetch",
-            title=f"Fetch seeds from {task.id}",
-            seed_urls=list(result.get("urls") or task.seed_urls),
-            allow_hosts=task.allow_hosts,
-            depends_on=[task.id],
-            status="open",
-            created_at=ts,
-            updated_at=ts,
-        )
-        extract_id = next_task_id(existing)
-        extract = Task(
-            id=extract_id,
-            scenario="crawler",
-            type="extract",
-            title=f"Extract {fetch_id}",
-            depends_on=[fetch_id],
-            allow_hosts=task.allow_hosts,
-            status="open",
-            created_at=ts,
-            updated_at=ts,
-        )
-        store.save_task(fetch)
-        store.save_task(extract)
-        created.extend([fetch, extract])
+        urls = list(result.get("urls") or task.seed_urls)
+        fetch_ids: list[str] = []
+        mode = task.mode or "http"
+        for url in urls:
+            fetch_id = next_task_id(existing)
+            existing.append(fetch_id)
+            fetch_ids.append(fetch_id)
+            from cowork.browser import brand_from_url as _brand_of
+            brand = task.brand or _brand_of(url)
+            fetch = Task(
+                id=fetch_id,
+                scenario="crawler",
+                type="fetch",
+                title=f"Fetch {brand or url}",
+                seed_urls=[url],
+                allow_hosts=task.allow_hosts,
+                depends_on=[task.id],
+                mode=mode,
+                brand=brand,
+                max_images=task.max_images or DEFAULT_MAX_IMAGES,
+                status="open",
+                created_at=ts,
+                updated_at=ts,
+            )
+            store.save_task(fetch)
+            created.append(fetch)
+        if fetch_ids:
+            extract_id = next_task_id(existing)
+            extract = Task(
+                id=extract_id,
+                scenario="crawler",
+                type="extract",
+                title=f"Catalog images from {task.id}",
+                depends_on=fetch_ids,
+                allow_hosts=task.allow_hosts,
+                status="open",
+                created_at=ts,
+                updated_at=ts,
+            )
+            store.save_task(extract)
+            created.append(extract)
     return created
 
 
@@ -170,7 +184,14 @@ def tick(store: Store, card: AgentCard, lease_seconds: int = DEFAULT_LEASE_SECON
     except GitError:
         pass
     heartbeat(store, card)
-    store.sync_push(f"cowork({card.id}): heartbeat")
+    try:
+        store.sync_push(f"cowork({card.id}): heartbeat")
+    except GitError:
+        try:
+            store.pull()
+            store.sync_push(f"cowork({card.id}): heartbeat")
+        except GitError:
+            pass
 
     owned = [
         t
@@ -193,19 +214,45 @@ def tick(store: Store, card: AgentCard, lease_seconds: int = DEFAULT_LEASE_SECON
     task = find_claimable(store, card)
     if task is None:
         return "idle"
-    if try_claim(store, card, task, lease_seconds=lease_seconds):
+    lease = CODEX_LEASE_SECONDS if task.mode == "browser" else lease_seconds
+    if try_claim(store, card, task, lease_seconds=lease):
         return f"claimed {task.id}"
     return "claim-lost"
 
 
-def loop(store: Store, card: AgentCard, interval: int, once: bool = False) -> None:
+def wake_path(store: Store, card: AgentCard):
+    return store.inbox_dir(card.id) / "wake"
+
+
+def wait_interval(store: Store, card: AgentCard, interval: int) -> None:
+    """Sleep up to `interval` seconds, but return immediately if a wake file appears.
+
+    The laptop monitor touches `.cowork/inbox/<id>/wake` so idle agents pick up
+    newly dispatched tasks without waiting for the next poll.
+    """
     import time
 
+    path = wake_path(store, card)
+    deadline = time.time() + max(0, interval)
+    while True:
+        if path.exists():
+            try:
+                path.unlink()
+            except OSError:
+                pass
+            return
+        remaining = deadline - time.time()
+        if remaining <= 0:
+            return
+        time.sleep(min(1.0, remaining))
+
+
+def loop(store: Store, card: AgentCard, interval: int, once: bool = False) -> None:
     while True:
         tick(store, card)
         if once:
             return
-        time.sleep(interval)
+        wait_interval(store, card, interval)
 
 
 def main(argv: list[str] | None = None) -> int:

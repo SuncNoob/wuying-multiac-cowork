@@ -21,6 +21,9 @@ cowork = "cowork.cli:main"
 [tool.setuptools.packages.find]
 include = ["cowork*"]
 
+[tool.setuptools.package-data]
+cowork = ["static/*"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]

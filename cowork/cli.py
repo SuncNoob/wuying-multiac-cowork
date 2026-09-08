@@ -11,6 +11,7 @@ from pathlib import Path
 from cowork import __version__
 from cowork.bootstrap import doctor_agent, install_agent
 from cowork.localcfg import load_config, password_from, save_config, targets_from
+from cowork.monitor import serve as serve_monitor
 from cowork.project import add_task, init_project
 from cowork.protocol import Task, next_task_id, now
 from cowork.sshutil import probe
@@ -121,6 +122,9 @@ def cmd_task_add(args: argparse.Namespace) -> int:
         content=args.content or "",
         seed_urls=seed_urls,
         allow_hosts=allow_hosts,
+        mode=getattr(args, "mode", "") or "http",
+        brand=getattr(args, "brand", "") or "",
+        max_images=int(getattr(args, "max_images", 0) or 0),
         status="open",
         created_at=now(),
         updated_at=now(),
@@ -169,6 +173,11 @@ def cmd_status(args: argparse.Namespace) -> int:
             info = doctor_agent(target)
             print(f"--- {target.id} ---")
             print(info["out"] or info["err"])
+    return 0
+
+
+def cmd_monitor(args: argparse.Namespace) -> int:
+    serve_monitor(host=args.host, port=args.port, open_browser=args.open, root=args.root or None)
     return 0
 
 
@@ -237,6 +246,9 @@ def build_parser() -> argparse.ArgumentParser:
     ta.add_argument("--content", default="")
     ta.add_argument("--url", action="append")
     ta.add_argument("--allow-host", action="append")
+    ta.add_argument("--mode", default="http", choices=["http", "browser"])
+    ta.add_argument("--brand", default="")
+    ta.add_argument("--max-images", type=int, default=0)
     ta.set_defaults(func=cmd_task_add)
 
     boot = sub.add_parser("bootstrap")
@@ -247,6 +259,13 @@ def build_parser() -> argparse.ArgumentParser:
     st = sub.add_parser("status")
     st.add_argument("--remote", action="store_true")
     st.set_defaults(func=cmd_status)
+
+    mon = sub.add_parser("monitor", help="local web dashboard for 3 Agent Computers")
+    mon.add_argument("--host", default="127.0.0.1")
+    mon.add_argument("--port", type=int, default=8765)
+    mon.add_argument("--root", default="", help="local cowork bus repo (default: infer)")
+    mon.add_argument("--open", action="store_true", help="open the dashboard in a browser")
+    mon.set_defaults(func=cmd_monitor)
 
     doc = sub.add_parser("doctor")
     doc.set_defaults(func=cmd_doctor)

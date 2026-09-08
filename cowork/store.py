@@ -100,7 +100,10 @@ class Store:
         if not folder.exists():
             return tasks
         for path in sorted(folder.glob("TASK-*.json")):
-            task = Task.from_dict(load_json(path))
+            try:
+                task = Task.from_dict(load_json(path))
+            except (ValueError, KeyError, OSError):
+                continue
             tasks[task.id] = task
         return tasks
 

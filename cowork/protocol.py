@@ -101,6 +101,9 @@ class Task:
     path: str = ""
     content: str = ""
     depends_on: list[str] = field(default_factory=list)
+    mode: str = "http"
+    brand: str = ""
+    max_images: int = 0
     created_at: int = 0
     updated_at: int = 0
 
@@ -123,6 +126,9 @@ class Task:
             path=str(data.get("path", "")),
             content=str(data.get("content", "")),
             depends_on=list(data.get("depends_on") or []),
+            mode=str(data.get("mode") or "http"),
+            brand=str(data.get("brand") or ""),
+            max_images=int(data.get("max_images") or 0),
             created_at=int(data.get("created_at") or 0),
             updated_at=int(data.get("updated_at") or 0),
         )

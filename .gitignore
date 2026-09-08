@@ -8,6 +8,7 @@ __pycache__/
 cowork.local.json
 .env
 .cowork/local/
+.cowork/inbox/*/wake
 *.log
 dist/
 *.egg-info/

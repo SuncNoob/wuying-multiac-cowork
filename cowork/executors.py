@@ -8,6 +8,11 @@ from pathlib import Path
 from urllib.error import URLError
 from urllib.request import Request, urlopen
 
+from cowork.browser import (
+    DEFAULT_MAX_IMAGES,
+    brand_from_url,
+)
+from cowork.codex_run import MIN_PDP_PAGES, jewelry_prompt, run_codex
 from cowork.protocol import Task, dump_json, host_allowed, now
 from cowork.store import Store
 
@@ -136,6 +141,9 @@ def run_fetch(store: Store, task: Task) -> dict:
         if not host_allowed(url, allow_hosts):
             fetched.append({"url": url, "ok": False, "error": "host not allowed"})
             continue
+        if task.mode == "browser":
+            fetched.append(_fetch_browser_page(store, task, url, allow_hosts))
+            continue
         try:
             status, content_type, body = fetch_url(url)
             raw_path = store.result_dir(task.id) / _safe_name(url)
@@ -149,6 +157,7 @@ def run_fetch(store: Store, task: Task) -> dict:
                     "bytes": len(body),
                     "file": str(raw_path.relative_to(store.root)),
                     "title": extract_title(body),
+                    "engine": "http",
                 }
             )
         except (URLError, TimeoutError, ValueError, OSError) as exc:
@@ -158,29 +167,180 @@ def run_fetch(store: Store, task: Task) -> dict:
     return result
 
 
+IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
+PDP_MARKERS = ("/products/", "/item/detail", "/items/")
+LISTING_MARKERS = ("/collections/", "category_id=", "/category/")
+
+
+def _clear_pic_dir(pic_dir: Path) -> None:
+    if not pic_dir.exists():
+        return
+    for path in pic_dir.iterdir():
+        if path.name == "manifest.json" or path.suffix.lower() in IMAGE_SUFFIXES:
+            path.unlink()
+
+
+def required_pdp_pages(limit: int) -> int:
+    if limit <= 0:
+        return MIN_PDP_PAGES
+    if limit < 8:
+        return max(1, limit)
+    return min(limit, MIN_PDP_PAGES)
+
+
+def is_pdp_url(url: str) -> bool:
+    low = (url or "").lower()
+    if not low:
+        return False
+    return any(m in low for m in PDP_MARKERS)
+
+
+def pdp_page_count(manifest: list[dict]) -> int:
+    pages = set()
+    for item in manifest:
+        page = str(item.get("source_page") or "").split("?")[0].rstrip("/")
+        if is_pdp_url(page):
+            pages.add(page)
+    return len(pages)
+
+
+def load_manifest(pic_dir: Path) -> list[dict]:
+    path = pic_dir / "manifest.json"
+    if not path.exists():
+        return []
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return []
+    return data if isinstance(data, list) else []
+
+
+def _fetch_browser_page(store: Store, task: Task, url: str, allow_hosts: list[str]) -> dict:
+    """Dispatch to Codex on this Agent Computer (Wuying gateway session)."""
+    brand = task.brand or brand_from_url(url)
+    limit = task.max_images or DEFAULT_MAX_IMAGES
+    pic_dir = store.root / "pics" / brand
+    pic_dir.mkdir(parents=True, exist_ok=True)
+    _clear_pic_dir(pic_dir)
+    rel_dir = str(pic_dir.relative_to(store.root))
+    need = required_pdp_pages(limit)
+    last = {}
+    ok_harvest = False
+    for attempt in range(2):
+        prompt = jewelry_prompt(brand, url, allow_hosts, limit, rel_dir)
+        if attempt:
+            prompt += (
+                "\n\nRETRY: previous save was listing thumbnails or too few detail pages. "
+                f"You MUST click at least {need} product detail URLs before downloading anything."
+            )
+        last = run_codex(prompt, store.root)
+        images = _list_saved_images(store.root, pic_dir)
+        pdps = pdp_page_count(load_manifest(pic_dir))
+        ok_harvest = bool(images) and pdps >= need
+        if ok_harvest:
+            break
+    images = _list_saved_images(store.root, pic_dir)
+    pdps = pdp_page_count(load_manifest(pic_dir))
+    dump_json(
+        store.result_dir(task.id) / "images.json",
+        {
+            "brand": brand,
+            "page": url,
+            "engine": "codex",
+            "codex_code": last.get("code"),
+            "pdp_pages": pdps,
+            "required_pdp_pages": need,
+            "images": images,
+        },
+    )
+    notes = store.result_dir(task.id) / "codex.log"
+    notes.write_text(
+        (last.get("stdout") or "") + "\n--- stderr ---\n" + (last.get("stderr") or ""),
+        encoding="utf-8",
+    )
+    return {
+        "url": url,
+        "ok": ok_harvest,
+        "engine": "codex",
+        "title": brand,
+        "brand": brand,
+        "images": images,
+        "pdp_pages": pdps,
+        "codex_code": last.get("code"),
+        "file": str(notes.relative_to(store.root)),
+        "bytes": sum(item.get("bytes") or 0 for item in images),
+        "error": "" if ok_harvest else f"need {need} product detail pages, got {pdps}",
+    }
+
+
+def _list_saved_images(root: Path, pic_dir: Path) -> list[dict]:
+    images = []
+    if not pic_dir.exists():
+        return images
+    for path in sorted(pic_dir.iterdir()):
+        if not path.is_file():
+            continue
+        if path.suffix.lower() not in {".jpg", ".jpeg", ".png", ".webp", ".gif"}:
+            continue
+        images.append(
+            {
+                "ok": True,
+                "file": str(path.resolve().relative_to(root.resolve())),
+                "bytes": path.stat().st_size,
+            }
+        )
+    return images
+
+
 def run_extract(store: Store, task: Task, tasks: dict[str, Task]) -> dict:
     rows = []
+    catalog_lines = ["# Product images", ""]
     for dep in task.depends_on:
         fetch_result = store.result_dir(dep) / "fetch.json"
         if not fetch_result.exists():
             continue
         data = json.loads(fetch_result.read_text(encoding="utf-8"))
         for item in data.get("fetched") or []:
-            rows.append(
-                {
-                    "source_task": dep,
-                    "url": item.get("url"),
-                    "ok": item.get("ok"),
-                    "status": item.get("status"),
-                    "title": item.get("title"),
-                    "bytes": item.get("bytes"),
-                }
-            )
+            images = item.get("images") or []
+            row = {
+                "source_task": dep,
+                "url": item.get("url"),
+                "ok": item.get("ok"),
+                "status": item.get("status"),
+                "title": item.get("title"),
+                "brand": item.get("brand"),
+                "engine": item.get("engine"),
+                "bytes": item.get("bytes"),
+                "image_count": len(images),
+                "images": [img.get("file") for img in images if img.get("ok")],
+            }
+            rows.append(row)
+            brand = row.get("brand") or "misc"
+            catalog_lines.append(f"## {brand}")
+            catalog_lines.append(f"- page: {row.get('url')}")
+            catalog_lines.append(f"- engine: {row.get('engine')}")
+            for img in row["images"]:
+                catalog_lines.append(f"- ![{brand}]({img})")
+            catalog_lines.append("")
     jsonl = store.result_dir(task.id) / "structured.jsonl"
     with jsonl.open("w", encoding="utf-8") as fh:
         for row in rows:
             fh.write(json.dumps(row, ensure_ascii=False) + "\n")
-    result = {"ok": bool(rows) and all(r.get("ok") for r in rows), "rows": len(rows), "file": str(jsonl.relative_to(store.root)), "at": now()}
+    catalog = store.root / "pics" / "CATALOG.md"
+    catalog.parent.mkdir(parents=True, exist_ok=True)
+    catalog.write_text("\n".join(catalog_lines).rstrip() + "\n", encoding="utf-8")
+    has_images = any(r.get("image_count", 0) > 0 for r in rows)
+    if has_images:
+        ok = bool(rows) and all(r.get("ok") for r in rows)
+    else:
+        ok = bool(rows) and all(r.get("ok") for r in rows)
+    result = {
+        "ok": ok,
+        "rows": len(rows),
+        "file": str(jsonl.relative_to(store.root)),
+        "catalog": str(catalog.relative_to(store.root)),
+        "at": now(),
+    }
     dump_json(store.result_dir(task.id) / "extract.json", result)
     return result
 

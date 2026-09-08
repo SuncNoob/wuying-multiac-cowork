@@ -47,13 +47,28 @@ def install_agent(
                 "/home/admin/.ssh/cowork_deploy",
                 mode=0o600,
             )
-            ssh_config = (
-                "Host github.com\n"
-                "  IdentityFile ~/.ssh/cowork_deploy\n"
-                "  StrictHostKeyChecking accept-new\n"
+        jewelry_key_path = Path.home() / ".config" / "cowork" / "jewelry_deploy"
+        if jewelry_key_path.exists():
+            remote.put_bytes(
+                jewelry_key_path.read_text(encoding="utf-8").encode("utf-8"),
+                "/home/admin/.ssh/jewelry_deploy",
+                mode=0o600,
             )
-            remote.put_bytes(ssh_config.encode("utf-8"), "/home/admin/.ssh/config", mode=0o600)
-        git_ssh = "GIT_SSH_COMMAND='ssh -i /home/admin/.ssh/cowork_deploy -o StrictHostKeyChecking=accept-new'"
+        ssh_config = (
+            "Host github.com\n"
+            "  HostName github.com\n"
+            "  IdentityFile ~/.ssh/cowork_deploy\n"
+            "  IdentitiesOnly yes\n"
+            "  StrictHostKeyChecking accept-new\n"
+            "\n"
+            "Host github-jewelry\n"
+            "  HostName github.com\n"
+            "  IdentityFile ~/.ssh/jewelry_deploy\n"
+            "  IdentitiesOnly yes\n"
+            "  StrictHostKeyChecking accept-new\n"
+        )
+        remote.put_bytes(ssh_config.encode("utf-8"), "/home/admin/.ssh/config", mode=0o600)
+        git_ssh = "GIT_SSH_COMMAND='ssh -F /home/admin/.ssh/config -o StrictHostKeyChecking=accept-new'"
         cloned = False
         if git_remote:
             clone = (

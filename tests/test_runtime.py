@@ -85,6 +85,33 @@ def test_spawn_followups_crawler(tmp_path):
     created = spawn_followups(store, task, {"urls": ["https://example.com/"]})
     assert [t.type for t in created] == ["fetch", "extract"]
     assert created[1].depends_on == [created[0].id]
+    assert created[0].seed_urls == ["https://example.com/"]
+
+
+def test_spawn_followups_fans_out_per_url(tmp_path):
+    store = make_store(tmp_path)
+    task = Task(
+        id="TASK-001",
+        scenario="crawler",
+        type="enqueue",
+        title="q",
+        seed_urls=["https://a.example.com/", "https://b.example.com/"],
+        allow_hosts=["example.com"],
+        mode="browser",
+        max_images=6,
+        status="done",
+    )
+    store.save_task(task)
+    created = spawn_followups(
+        store,
+        task,
+        {"urls": ["https://www.lienujewelry.com/", "https://hasuna.com/"]},
+    )
+    assert [t.type for t in created] == ["fetch", "fetch", "extract"]
+    assert created[0].mode == "browser"
+    assert created[0].brand == "lienu"
+    assert created[1].brand == "hasuna"
+    assert created[2].depends_on == [created[0].id, created[1].id]
 
 
 def test_project_init_cards(tmp_path):

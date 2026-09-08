@@ -38,11 +38,26 @@ def save_config(data: dict[str, Any], path: Path | None = None) -> Path:
 
 
 def password_from(data: dict[str, Any]) -> str:
-    return (
-        os.environ.get("COWORK_SSH_PASSWORD")
-        or (data.get("ssh") or {}).get("password")
-        or ""
-    )
+    env = os.environ.get("COWORK_SSH_PASSWORD") or ""
+    if env:
+        return env
+    direct = (data.get("ssh") or {}).get("password") or ""
+    if direct:
+        return direct
+    for extra in (
+        DEFAULT_PATH,
+        Path(__file__).resolve().parent.parent / "cowork.local.json",
+    ):
+        if not extra.exists():
+            continue
+        try:
+            other = json.loads(extra.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        pw = (other.get("ssh") or {}).get("password") or ""
+        if pw:
+            return pw
+    return ""
 
 
 def targets_from(data: dict[str, Any]) -> list[SSHTarget]:
