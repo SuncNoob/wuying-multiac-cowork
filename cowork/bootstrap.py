@@ -34,17 +34,13 @@ def install_agent(
     deploy_key: str | None = None,
     start: bool = True,
 ) -> str:
-    tarball = pack_payload(repo_root)
     workdir = target.workdir
+    tar_path = f"/root/cowork-{target.id}.tgz"
     with Remote(target) as remote:
-        remote.run_root(f"mkdir -p {workdir} /home/admin/.ssh /home/admin/logs && chown -R {target.become}:{target.become} /home/admin/.ssh /home/admin/logs {workdir}")
-        remote.put_bytes(tarball, f"/tmp/cowork-{target.id}.tgz", mode=0o644)
-        code, out, err = remote.run(
-            f"mkdir -p {workdir} && tar -xzf /tmp/cowork-{target.id}.tgz -C {workdir}",
-            timeout=120,
+        remote.run_root(
+            f"mkdir -p /home/admin/.ssh /home/admin/logs {workdir} && "
+            f"chown -R {target.become}:{target.become} /home/admin/.ssh /home/admin/logs"
         )
-        if code != 0:
-            raise RuntimeError(err or out)
         if deploy_key:
             remote.put_bytes(
                 deploy_key.encode("utf-8"),
@@ -58,48 +54,66 @@ def install_agent(
             )
             remote.put_bytes(ssh_config.encode("utf-8"), "/home/admin/.ssh/config", mode=0o600)
         git_ssh = "GIT_SSH_COMMAND='ssh -i /home/admin/.ssh/cowork_deploy -o StrictHostKeyChecking=accept-new'"
+        cloned = False
         if git_remote:
             clone = (
-                f"rm -rf {workdir} && mkdir -p {workdir} && "
+                f"rm -rf {workdir} && "
                 f"{git_ssh} git clone {git_remote} {workdir}"
             )
             code, out, err = remote.run(clone, timeout=180)
-            if code != 0:
-                # fall back to tarball overlay
-                remote.run(f"mkdir -p {workdir} && tar -xzf /tmp/cowork-{target.id}.tgz -C {workdir}", timeout=120)
-        else:
-            code, out, err = remote.run(
-                f"mkdir -p {workdir} && tar -xzf /tmp/cowork-{target.id}.tgz -C {workdir}",
-                timeout=120,
+            cloned = code == 0
+            if not cloned:
+                print(f"clone failed on {target.id}: {err or out}")
+        if not cloned:
+            remote.put_bytes(pack_payload(repo_root), tar_path, mode=0o644)
+            code, out, err = remote.run_root(
+                f"rm -rf {workdir} && mkdir -p {workdir} && tar -xzf {tar_path} -C {workdir} && "
+                f"chown -R {target.become}:{target.become} {workdir}"
             )
             if code != 0:
                 raise RuntimeError(err or out)
         git_setup = (
             f"cd {workdir} && "
-            "git init >/dev/null 2>&1 || true; "
             f"git config user.name {target.id}; "
             f"git config user.email {target.id}@cowork.local; "
         )
         if git_remote:
             git_setup += (
-                "git remote remove origin >/dev/null 2>&1 || true; "
-                f"git remote add origin {git_remote} >/dev/null 2>&1 || git remote set-url origin {git_remote}; "
-                "git branch -M main; "
+                f"git remote set-url origin {git_remote} 2>/dev/null || "
+                f"(git init && git remote add origin {git_remote} && git branch -M main); "
             )
-        remote.run(git_setup, timeout=60)
+        code, out, err = remote.run(git_setup, timeout=60)
         if start:
-            start_cmd = (
-                f"cd {workdir} && "
-                "mkdir -p /home/admin/logs && "
-                f"(pkill -f 'python3 -m cowork.runtime --agent-id {target.id}' || true); "
-                "nohup env PYTHONPATH=. python3 -m cowork.runtime "
-                f"--agent-id {target.id} --interval 12 "
-                f"> /home/admin/logs/coworkd-{target.id}.log 2>&1 & echo $!"
-            )
-            code, out, err = remote.run(start_cmd, timeout=30)
-            if code != 0:
-                raise RuntimeError(err or out)
-            return out.strip()
+            pidfile = f"/home/admin/logs/coworkd-{target.id}.pid"
+            logfile = f"/home/admin/logs/coworkd-{target.id}.log"
+            starter = f"""
+python3 - <<'PY'
+import os, subprocess, pathlib
+pathlib.Path("/home/admin/logs").mkdir(parents=True, exist_ok=True)
+pid_path = pathlib.Path("{pidfile}")
+if pid_path.exists():
+    try:
+        os.kill(int(pid_path.read_text().strip()), 15)
+    except Exception:
+        pass
+proc = subprocess.Popen(
+    ["bash", "-lc", "exec python3 -m cowork.runtime --agent-id {target.id} --interval 12 >> {logfile} 2>&1"],
+    cwd="{workdir}",
+    env={{**os.environ, "PYTHONPATH": ".", "HOME": "/home/admin", "USER": "admin", "LOGNAME": "admin"}},
+    stdin=subprocess.DEVNULL,
+    start_new_session=True,
+    user="{target.become}",
+)
+pid_path.write_text(str(proc.pid) + "\\n")
+os.chown(pid_path, 1000, 1000)
+print(proc.pid)
+PY
+"""
+            code, out, err = remote.run_root(starter, timeout=20)
+            pid = "".join(ch for ch in out if ch.isdigit())
+            if not pid:
+                raise RuntimeError(err or out or "failed to start coworkd")
+            return pid
     return "installed"
 
 
@@ -107,7 +121,7 @@ def doctor_agent(target: SSHTarget) -> dict[str, str]:
     with Remote(target) as remote:
         code, out, err = remote.run(
             f"whoami; test -d {target.workdir} && echo HAS_WORKDIR; "
-            f"pgrep -af cowork.runtime || true; "
-            f"tail -n 20 /home/admin/logs/coworkd-{target.id}.log 2>/dev/null || true"
+            f"test -f /home/admin/logs/coworkd-{target.id}.pid && echo PID=$(cat /home/admin/logs/coworkd-{target.id}.pid); "
+            f"tail -n 30 /home/admin/logs/coworkd-{target.id}.log 2>/dev/null || true"
         )
         return {"code": str(code), "out": out, "err": err}

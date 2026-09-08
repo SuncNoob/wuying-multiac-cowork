@@ -51,6 +51,7 @@ class Remote:
         else:
             wrapped = command
         stdin, stdout, stderr = self.client.exec_command(wrapped, timeout=timeout)
+        stdin.channel.shutdown_write()
         out = stdout.read().decode("utf-8", "replace")
         err = stderr.read().decode("utf-8", "replace")
         code = stdout.channel.recv_exit_status()
