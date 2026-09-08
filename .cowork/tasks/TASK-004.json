@@ -3,10 +3,10 @@
   "scenario": "coding",
   "type": "review",
   "title": "Review: write hello",
-  "status": "open",
+  "status": "claimed",
   "body": "",
   "need": [],
-  "owner": "",
+  "owner": "ac3",
   "seed_urls": [],
   "allow_hosts": [],
   "path": "",
@@ -15,5 +15,5 @@
     "TASK-003"
   ],
   "created_at": 1788852725,
-  "updated_at": 1788852725
+  "updated_at": 1788853031
 }
