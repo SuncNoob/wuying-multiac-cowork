@@ -3,15 +3,15 @@
   "scenario": "coding",
   "type": "implement",
   "title": "Implement: write hello",
-  "status": "open",
+  "status": "claimed",
   "body": "",
   "need": [],
-  "owner": "",
+  "owner": "ac2",
   "seed_urls": [],
   "allow_hosts": [],
   "path": "workspace/hello.txt",
   "content": "hello cowork from 3 agents\n",
   "depends_on": [],
   "created_at": 1788852725,
-  "updated_at": 1788852725
+  "updated_at": 1788852866
 }
