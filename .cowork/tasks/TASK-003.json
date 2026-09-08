@@ -3,7 +3,7 @@
   "scenario": "coding",
   "type": "implement",
   "title": "Implement: write hello",
-  "status": "in_progress",
+  "status": "done",
   "body": "",
   "need": [],
   "owner": "ac2",
@@ -13,5 +13,5 @@
   "content": "hello cowork from 3 agents\n",
   "depends_on": [],
   "created_at": 1788852725,
-  "updated_at": 1788852890
+  "updated_at": 1788852894
 }
