@@ -1,0 +1,21 @@
+{
+  "id": "TASK-002",
+  "scenario": "crawler",
+  "type": "enqueue",
+  "title": "fetch example.com",
+  "status": "open",
+  "body": "",
+  "need": [],
+  "owner": "",
+  "seed_urls": [
+    "https://example.com"
+  ],
+  "allow_hosts": [
+    "example.com"
+  ],
+  "path": "",
+  "content": "",
+  "depends_on": [],
+  "created_at": 1788852552,
+  "updated_at": 1788852552
+}
