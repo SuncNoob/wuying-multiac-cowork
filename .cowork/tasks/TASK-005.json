@@ -3,10 +3,10 @@
   "scenario": "crawler",
   "type": "fetch",
   "title": "Fetch seeds from TASK-002",
-  "status": "open",
+  "status": "claimed",
   "body": "",
   "need": [],
-  "owner": "",
+  "owner": "ac2",
   "seed_urls": [
     "https://example.com"
   ],
@@ -19,5 +19,5 @@
     "TASK-002"
   ],
   "created_at": 1788852777,
-  "updated_at": 1788852777
+  "updated_at": 1788852919
 }
