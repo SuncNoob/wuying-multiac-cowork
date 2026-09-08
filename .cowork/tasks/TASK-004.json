@@ -3,7 +3,7 @@
   "scenario": "coding",
   "type": "review",
   "title": "Review: write hello",
-  "status": "in_progress",
+  "status": "done",
   "body": "",
   "need": [],
   "owner": "ac3",
@@ -15,5 +15,5 @@
     "TASK-003"
   ],
   "created_at": 1788852725,
-  "updated_at": 1788853064
+  "updated_at": 1788853068
 }
