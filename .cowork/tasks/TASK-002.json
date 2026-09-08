@@ -3,7 +3,7 @@
   "scenario": "crawler",
   "type": "enqueue",
   "title": "fetch example.com",
-  "status": "claimed",
+  "status": "in_progress",
   "body": "",
   "need": [],
   "owner": "ac1",
@@ -17,5 +17,5 @@
   "content": "",
   "depends_on": [],
   "created_at": 1788852552,
-  "updated_at": 1788852748
+  "updated_at": 1788852773
 }
