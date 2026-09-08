@@ -1,17 +1,17 @@
 {
-  "id": "TASK-001",
+  "id": "TASK-003",
   "scenario": "coding",
-  "type": "plan",
-  "title": "write hello",
-  "status": "done",
+  "type": "implement",
+  "title": "Implement: write hello",
+  "status": "open",
   "body": "",
   "need": [],
-  "owner": "ac1",
+  "owner": "",
   "seed_urls": [],
   "allow_hosts": [],
   "path": "workspace/hello.txt",
   "content": "hello cowork from 3 agents\n",
   "depends_on": [],
-  "created_at": 1788852552,
+  "created_at": 1788852725,
   "updated_at": 1788852725
 }

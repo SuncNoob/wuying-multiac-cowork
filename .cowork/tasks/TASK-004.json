@@ -1,0 +1,19 @@
+{
+  "id": "TASK-004",
+  "scenario": "coding",
+  "type": "review",
+  "title": "Review: write hello",
+  "status": "open",
+  "body": "",
+  "need": [],
+  "owner": "",
+  "seed_urls": [],
+  "allow_hosts": [],
+  "path": "",
+  "content": "",
+  "depends_on": [
+    "TASK-003"
+  ],
+  "created_at": 1788852725,
+  "updated_at": 1788852725
+}
