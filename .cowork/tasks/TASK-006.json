@@ -3,7 +3,7 @@
   "scenario": "crawler",
   "type": "extract",
   "title": "Extract TASK-005",
-  "status": "in_progress",
+  "status": "done",
   "body": "",
   "need": [],
   "owner": "ac3",
@@ -17,5 +17,5 @@
     "TASK-005"
   ],
   "created_at": 1788852777,
-  "updated_at": 1788853124
+  "updated_at": 1788853128
 }
