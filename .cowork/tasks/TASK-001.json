@@ -3,15 +3,15 @@
   "scenario": "coding",
   "type": "plan",
   "title": "write hello",
-  "status": "open",
+  "status": "claimed",
   "body": "",
   "need": [],
-  "owner": "",
+  "owner": "ac1",
   "seed_urls": [],
   "allow_hosts": [],
   "path": "workspace/hello.txt",
   "content": "hello cowork from 3 agents\n",
   "depends_on": [],
   "created_at": 1788852552,
-  "updated_at": 1788852552
+  "updated_at": 1788852697
 }
