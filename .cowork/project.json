@@ -1,0 +1,12 @@
+{
+  "protocol": "1.0",
+  "name": "demo",
+  "scenario": "all",
+  "remote": "git@github.com:SuncNoob/wuying-multiac-cowork.git",
+  "roles": {
+    "planner": "ac1",
+    "builder": "ac2",
+    "reviewer": "ac3"
+  },
+  "created_at": 1788852121
+}

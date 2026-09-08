@@ -1,0 +1,12 @@
+{
+  "id": "ac2",
+  "role": "builder",
+  "capabilities": [
+    "fetch",
+    "implement"
+  ],
+  "model": "Auto",
+  "host": "53326",
+  "heartbeat_at": 0,
+  "protocol": "1.0"
+}

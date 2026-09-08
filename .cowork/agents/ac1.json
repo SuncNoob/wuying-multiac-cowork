@@ -1,0 +1,12 @@
+{
+  "id": "ac1",
+  "role": "planner",
+  "capabilities": [
+    "enqueue",
+    "plan"
+  ],
+  "model": "Auto",
+  "host": "56735",
+  "heartbeat_at": 0,
+  "protocol": "1.0"
+}

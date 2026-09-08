@@ -1,0 +1,6 @@
+name: coding
+version: "1.0"
+roles:
+  planner: [plan]
+  builder: [implement]
+  reviewer: [review]

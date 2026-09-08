@@ -1,0 +1,8 @@
+name: crawler
+version: "1.0"
+roles:
+  dispatcher: [enqueue]
+  fetcher: [fetch]
+  analyst: [extract]
+required:
+  - allow_hosts
