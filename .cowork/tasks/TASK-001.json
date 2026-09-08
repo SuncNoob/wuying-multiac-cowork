@@ -3,7 +3,7 @@
   "scenario": "coding",
   "type": "plan",
   "title": "write hello",
-  "status": "claimed",
+  "status": "in_progress",
   "body": "",
   "need": [],
   "owner": "ac1",
@@ -13,5 +13,5 @@
   "content": "hello cowork from 3 agents\n",
   "depends_on": [],
   "created_at": 1788852552,
-  "updated_at": 1788852697
+  "updated_at": 1788852721
 }
